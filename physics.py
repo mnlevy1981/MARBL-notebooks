@@ -40,14 +40,7 @@ def xkw_to_u10sqr(xkw): # units of xkw should be cm/s
     # Note that this function returns value in units m^/s^2 rather than cm^2/s^2
     return((xkw/xkw_coeff)*0.0001)
 
-def get_surface_value(data_in, column_var):
-    # first just populate it with ice_frac (another scalar) to get all metadata
-    new_da = data_in['ice_frac'].copy(deep=True)
-    new_da.values = data_in[column_var].values[0]
-    new_da.attrs['long_name'] = 'Sea Surface {}'.format(data_in[column_var].attrs['long_name'])
-    new_da.attrs['units'] = data_in[column_var].attrs['units']
-    try:
-        new_da.encoding['scale_factor'] = data_in[column_var].encoding['scale_factor']
-    except:
-        pass
+def get_surface_value(da_in):
+    new_da = da_in.isel(z_t=0)
+    new_da.attrs['long_name'] = 'Sea Surface {}'.format(new_da.attrs['long_name'])
     return(new_da)
