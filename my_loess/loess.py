@@ -28,25 +28,59 @@ class loess(object):
         h = np.max(hi)
         j_ind = np.argpartition(temp_array, n-1)[:n]
         xj = self.x[:,j_ind]
-        dataj = self.data[0,j_ind]
+        dataj = np.array(self.data[0,j_ind])
 
-        # Regression: yj ~= sum b_n * (xj**n)
-        assert self.x.shape[0] == 1, "Currently expecting 1d coordinates"
-        poly_data = np.poly1d(np.polyfit(np.squeeze(np.asarray(xj)), np.squeeze(np.asarray(dataj)), d, w=np.sqrt(_W(self.x[:,i] - xj, h))))
+        if False:
+            # Regression: yj ~= sum b_n * (xj**n)
+            assert self.x.shape[0] == 1, "Currently expecting 1d coordinates"
+            poly_data = np.poly1d(np.polyfit(np.squeeze(np.asarray(xj)), np.squeeze(np.asarray(dataj)), d, w=np.sqrt(_W(self.x[:,i] - xj, h))))
+            for _ in range(t):
+                data_est = poly_data(xj)
+                residuals = np.squeeze(np.asarray(np.abs(data_est - dataj)))
+                s = np.median(residuals)
+                poly_data = np.poly1d(np.polyfit(np.squeeze(np.asarray(xj)), np.squeeze(np.asarray(dataj)), d, w=np.sqrt(_B(residuals/(6*s))*_W(self.x[:,i] - xj, h))))
+        poly_coeffs = self._compute_poly_coeffs(np.squeeze(xj), np.squeeze(dataj), _W(self.x[:,i] - xj, h))
         for _ in range(t):
-            data_est = poly_data(xj)
-            residuals = np.squeeze(np.asarray(np.abs(data_est - dataj)))
-            s = np.median(residuals)
-            poly_data = np.poly1d(np.polyfit(np.squeeze(np.asarray(xj)), np.squeeze(np.asarray(dataj)), d, w=np.sqrt(_B(residuals/(6*s))*_W(self.x[:,i] - xj, h))))
+                data_est = evaluate_poly(poly_coeffs, xj)
+                residuals = np.squeeze(np.asarray(np.abs(data_est - dataj)))
+                s = np.median(residuals)
+                poly_coeffs = self._compute_poly_coeffs(np.squeeze(xj), np.squeeze(dataj), _B(residuals/(6*s))*_W(self.x[:,i] - xj, h))
 
-        return poly_data, xj, dataj
+        return poly_coeffs, xj, dataj
 
     def poly_fit(self, n, d, t=0):
         data_est = np.zeros(self.npts)
         for i in range(0, self.npts):
-            poly_data, _, _ = self.poly_fit_at_i(i, n, d, t)
-            data_est[i] = poly_data(self.x[:,i])
+            poly_coeffs, _, _ = self.poly_fit_at_i(i, n, d, t)
+            data_est[i] = evaluate_poly(poly_coeffs, self.x[:,i])
         return data_est
+
+    def _compute_poly_coeffs(self, x_mat, z_arr, wgts=None):
+        """ x_mat is m by n matrix, z is array of length n
+             return n+1 coefficients c for first order multivariate polynomial f(x[:])
+             such that
+             z ~= c[0] + c[1]*x[0] + c[2]*x[1] + ... + c[m]*x[m-1]
+        """
+
+        assert type(x_mat) == np.matrix, "x_mat must be a numpy matrix, not {}".format(type(x_mat))
+        assert type(z_arr) == np.ndarray, "z_arr must be a numpy array, not {}".format(type(z_arr))
+        assert len(x_mat.shape) == 2, "x_mat must be m by n"
+        assert x_mat.shape[1] == z_arr.size, "second dimension of {} matrix x_mat must equal size of z_arr ({})".format(x_mat.shape[1], z_arr.size)
+
+        if wgts is None:
+            print('No weights provided')
+            sqrt_wgts = np.ones(z_arr.size)
+        else:
+            sqrt_wgts = np.sqrt(wgts)
+
+        a = np.empty((x_mat.shape[1], x_mat.shape[0]+1))
+        a[:, 0]  = sqrt_wgts
+        a[:, 1:] = np.multiply(x_mat, sqrt_wgts).transpose()
+
+        return np.linalg.lstsq(a, z_arr*sqrt_wgts, rcond=-1)[0]
+    
+def evaluate_poly(coeffs, x_coord):
+    return np.squeeze(np.array(coeffs[0] + coeffs[1:].dot(x_coord)))
 
 def _W(x, h):
     """
