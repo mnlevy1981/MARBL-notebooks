@@ -4,12 +4,20 @@
 import numpy as np
 
 class loess(object):
-    def __init__(self, x, data):
+    def __init__(self, x, data, convert_lat_lon=False):
         """ * x is a matrix of coordinates (nrow = number of dimensions, ncol = number of points)
               -- vector x is converted to 1 x n matrix
             * data is data sampled at x (to be smoothed)
         """
-        self.x = np.asmatrix(x)
+        if convert_lat_lon:
+            lon = np.squeeze(np.array(x[0,:]))
+            lat = np.squeeze(np.array(x[1,:]))
+            x3d = np.cos(lat)*np.cos(lon)
+            y3d = np.cos(lat)*np.sin(lon)
+            z3d = np.sin(lat)
+            self.x = np.matrix([x3d, y3d, z3d])
+        else: 
+            self.x = np.asmatrix(x)
         self.data = np.asmatrix(data)
         assert x.shape[-1] == data.shape[-1], "x and fx must be same length"
         self.npts = data.shape[-1]
