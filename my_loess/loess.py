@@ -3,7 +3,7 @@
     be added at a later time
 
     Steps to take:
-    
+
     1) Construct class by defining the grid to smooth data on
        - intent(in):  all coordinates, number of neighbors to include in regression, and an
                       optional flag to convert (lat, lon) grid to unit sphere (default: false)
@@ -11,10 +11,14 @@
                       as matrix containing distance to nearest neighbors (and their indices)
 """
 
+import os
 import numpy as np
 import xarray as xr
-import os
-
+# from numba import jit
+# from numba import jitclass
+# from numba import int16, float64
+#
+# @jitclass({'x' : float64[:], 'ndims' : int16, 'npts' : int16, 'num_nearest_pts' : int16, 'grid' : float64[:]})
 class linear_loess(object):
     def __init__(self, x=None, num_nearest_pts=None, convert_lat_lon=False, grid_file=None):
         """ * x is a matrix of coordinates (nrow = number of dimensions,
@@ -36,17 +40,22 @@ class linear_loess(object):
 
         if x is None or num_nearest_pts is None:
             raise ValueError("Unless reading a grid file, x and num_nearest_pts are both required")
+
         # This block only runs if grid_file is not None
         if convert_lat_lon:
-            assert np.asmatrix(x).shape[0] == 2, 'Can only convert 2D data from (lat, lon) to (x, y, z)'
+            assert x.shape[0] == 2, 'Can only convert 2D data from (lat, lon) to (x, y, z)'
             lon = np.squeeze(np.array(x[0,:]))
             lat = np.squeeze(np.array(x[1,:]))
             x3d = np.cos(lat)*np.cos(lon)
             y3d = np.cos(lat)*np.sin(lon)
             z3d = np.sin(lat)
-            xmat = np.matrix([x3d, y3d, z3d])
-        else: 
-            xmat = np.asmatrix(x)
+            xmat = np.array([x3d, y3d, z3d])
+        else:
+            # xmat must be 2D, so convert 1D data from array of length N to 1xN data
+            if len(x.shape) == 1:
+                xmat = np.array([x])
+            else:
+                xmat = x
 
         self.ndims = xmat.shape[0]
         self.npts = xmat.shape[1]
@@ -84,17 +93,16 @@ class linear_loess(object):
             4. Apply robustness t times
         """
         j_ind = self.grid['norm_jind'].data[i,:]
-        xj = np.asmatrix(self.grid['coord_matrix'].data[:,j_ind])
+        xj = self.grid['coord_matrix'].data[:,j_ind]
         dataj = np.array(data[j_ind])
 
         h = np.max(self.grid['norm'].data[i,:])
-        #diff = np.asmatrix(self.grid['coord_matrix'].data[:,i]) - xj
-        poly_coeffs = self._compute_poly_coeffs(xj, np.squeeze(dataj), _W(np.asmatrix(self.grid['coord_matrix'].data[:,i]).T - xj, h))
+        poly_coeffs = self._compute_poly_coeffs(xj, np.squeeze(dataj), _W(self.grid['coord_matrix'].data[:,[i]] - xj, h))
         for _ in range(t):
                 data_est = evaluate_poly(poly_coeffs, xj)
                 residuals = np.squeeze(np.asarray(np.abs(data_est - dataj)))
                 s = np.median(residuals)
-                poly_coeffs = self._compute_poly_coeffs(xj, np.squeeze(dataj), _B(residuals/(6*s))*_W(np.asmatrix(self.grid['coord_matrix'].data[:,i]).T - xj, h))
+                poly_coeffs = self._compute_poly_coeffs(xj, np.squeeze(dataj), _B(residuals/(6*s))*_W(self.grid['coord_matrix'].data[:,[i]] - xj, h))
 
         return poly_coeffs, xj, dataj
 
@@ -128,7 +136,7 @@ class linear_loess(object):
         a[:, 1:] = np.multiply(x_mat, sqrt_wgts).transpose()
 
         return np.linalg.lstsq(a, z_arr*sqrt_wgts, rcond=-1)[0]
-    
+
 def evaluate_poly(coeffs, x_coord):
     return np.squeeze(np.array(coeffs[0] + coeffs[1:].dot(x_coord)))
 
