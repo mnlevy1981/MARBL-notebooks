@@ -20,7 +20,7 @@ import xarray as xr
 #
 # @jitclass({'x' : float64[:], 'ndims' : int16, 'npts' : int16, 'num_nearest_pts' : int16, 'grid' : float64[:]})
 class linear_loess(object):
-    def __init__(self, x=None, num_nearest_pts=None, convert_lat_lon=False, grid_file=None):
+    def __init__(self, x=None, num_nearest_pts=None, mask=None, convert_lat_lon=False, is_degrees=True, grid_file=None):
         """ * x is a matrix of coordinates (nrow = number of dimensions,
               ncol = number of points)
               -- vector x is converted to 1 x n matrix
@@ -46,6 +46,10 @@ class linear_loess(object):
             assert x.shape[0] == 2, 'Can only convert 2D data from (lat, lon) to (x, y, z)'
             lon = np.squeeze(np.array(x[0,:]))
             lat = np.squeeze(np.array(x[1,:]))
+            if is_degrees:
+                deg2rad = np.pi/180.
+                lon = lon * deg2rad
+                lat = lat * deg2rad
             x3d = np.cos(lat)*np.cos(lon)
             y3d = np.cos(lat)*np.sin(lon)
             z3d = np.sin(lat)
@@ -66,6 +70,10 @@ class linear_loess(object):
         self.grid['npts'] = xr.DataArray(np.arange(self.npts)+1, dims='npts')
         self.grid['num_nearest_pts'] = xr.DataArray(np.arange(self.num_nearest_pts)+1, dims='num_nearest_pts')
         self.grid['coord_matrix'] = xr.DataArray(xmat, dims=['ndims', 'npts'])
+        if mask is None:
+            self.grid['included_pts'] = xr.DataArray([True]*self.npts, dims=['npts'])
+        else:
+            self.grid['included_pts'] = xr.DataArray(mask, dims=['npts'])
         self.compute_distances(num_nearest_pts)
 
     def compute_distances(self, num_nearest_pts):
@@ -78,7 +86,8 @@ class linear_loess(object):
         """
         self.grid['norm'] = xr.DataArray(np.empty((self.npts, self.num_nearest_pts), dtype=np.float64), dims=['npts', 'num_nearest_pts'])
         self.grid['norm_jind'] = xr.DataArray(np.empty((self.npts, self.num_nearest_pts), dtype=np.int), dims=['npts', 'num_nearest_pts'])
-        for i in range(self.npts):
+        for i in np.where(self.grid['included_pts'])[0]:
+#        for i in range(0, self.npts):
             # Find num_nearest_pts smallest values
             # https://stackoverflow.com/questions/5807047/efficient-way-to-take-the-minimum-maximum-n-values-and-indices-from-a-matrix-usi
             temp_array = np.linalg.norm(self.grid['coord_matrix'][:,i] - self.grid['coord_matrix'], axis=0)
@@ -92,7 +101,7 @@ class linear_loess(object):
             3. Return polynomial coefficients as well as all (self.x, self.data) values used to determine polynomial
             4. Apply robustness t times
         """
-        j_ind = self.grid['norm_jind'].data[i,:]
+        j_ind = [j for j in self.grid['norm_jind'].data[i,:] if not np.isnan(data[j])]
         xj = self.grid['coord_matrix'].data[:,j_ind]
         dataj = np.array(data[j_ind])
 
@@ -107,8 +116,9 @@ class linear_loess(object):
         return poly_coeffs, xj, dataj
 
     def poly_fit(self, data, t=0):
-        data_est = np.zeros(self.npts)
-        for i in range(0, self.npts):
+        data_est = np.where(self.grid['included_pts'], 0, np.nan)
+        for i in np.where(self.grid['included_pts'])[0]:
+#        for i in range(0, self.npts):
             poly_coeffs, _, _ = self.poly_fit_at_i(i, data, t)
             data_est[i] = evaluate_poly(poly_coeffs, self.grid['coord_matrix'].data[:,i])
         return data_est
