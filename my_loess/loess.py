@@ -1,4 +1,13 @@
-""" A class to contain functions needed for LOESS (locally estimated scatterplot smoothing)
+""" A private base class that contains functions needed for LOESS (locally estimated
+    scatterplot smoothing), and several public classes providing different interfaces.
+
+    1. LinearLoess1D(x, num_nearest_points): used for 1D data sets
+    2. LinearLoess1D(x, y, num_nearest_points): used for 2D data sets
+    3. LinearLoessGlobal(lon, lat, num_nearest_points): used for global data sets
+    4. LinearLoessFromGridFile(grid_file): read previously-generated grid file
+    ** Coming soon -- LinearLoessFromPOPFiles(history_file): use TLONG and TLAT for lon and lat
+                      and also set up mask (KMT == 0)
+
     For now, this class only performs linear regression (bilinear for 2D); quadratic will
     be added at a later time
 
@@ -14,13 +23,9 @@
 import os
 import numpy as np
 import xarray as xr
-# from numba import jit
-# from numba import jitclass
-# from numba import int16, float64
-#
-# @jitclass({'x' : float64[:], 'ndims' : int16, 'npts' : int16, 'num_nearest_pts' : int16, 'grid' : float64[:]})
-class linear_loess(object):
-    def __init__(self, x=None, num_nearest_pts=None, mask=None, convert_lat_lon=False, is_degrees=True, grid_file=None):
+
+class _LinearLoessBaseClass(object):
+    def __init__(self, x=None, num_nearest_pts=None, mask=None, grid_file=None):
         """ * x is a matrix of coordinates (nrow = number of dimensions,
               ncol = number of points)
               -- vector x is converted to 1 x n matrix
@@ -41,35 +46,18 @@ class linear_loess(object):
         if x is None or num_nearest_pts is None:
             raise ValueError("Unless reading a grid file, x and num_nearest_pts are both required")
 
-        # This block only runs if grid_file is not None
-        if convert_lat_lon:
-            assert x.shape[0] == 2, 'Can only convert 2D data from (lat, lon) to (x, y, z)'
-            lon = np.squeeze(np.array(x[0,:]))
-            lat = np.squeeze(np.array(x[1,:]))
-            if is_degrees:
-                deg2rad = np.pi/180.
-                lon = lon * deg2rad
-                lat = lat * deg2rad
-            x3d = np.cos(lat)*np.cos(lon)
-            y3d = np.cos(lat)*np.sin(lon)
-            z3d = np.sin(lat)
-            xmat = np.array([x3d, y3d, z3d])
-        else:
-            # xmat must be 2D, so convert 1D data from array of length N to 1xN data
-            if len(x.shape) == 1:
-                xmat = np.array([x])
-            else:
-                xmat = x
+        if len(x.shape) != 2:
+            raise ValueError("x must be 2D (ndims x npts)")
 
-        self.ndims = xmat.shape[0]
-        self.npts = xmat.shape[1]
+        self.ndims = x.shape[0]
+        self.npts = x.shape[1]
         self.num_nearest_pts = num_nearest_pts
 
         self.grid = xr.Dataset(coords={'ndims' : self.ndims, 'npts' : self.npts, 'num_nearest_pts' : self.num_nearest_pts})
         self.grid['ndims'] = xr.DataArray(np.arange(self.ndims)+1, dims='ndims')
         self.grid['npts'] = xr.DataArray(np.arange(self.npts)+1, dims='npts')
         self.grid['num_nearest_pts'] = xr.DataArray(np.arange(self.num_nearest_pts)+1, dims='num_nearest_pts')
-        self.grid['coord_matrix'] = xr.DataArray(xmat, dims=['ndims', 'npts'])
+        self.grid['coord_matrix'] = xr.DataArray(x, dims=['ndims', 'npts'])
         if mask is None:
             self.grid['included_pts'] = xr.DataArray([True]*self.npts, dims=['npts'])
         else:
@@ -159,3 +147,39 @@ def _W(x, h):
 
 def _B(x):
     return np.where(x < 1, (1 - x**2)**2, 0)
+
+####################
+# CLASS EXTENSIONS #
+####################
+
+class LinearLoess1D(_LinearLoessBaseClass):
+    def __init__(self, x, num_nearest_pts, mask=None):
+        super(LinearLoess1D, self).__init__(np.array([x]), num_nearest_pts, mask)
+
+class LinearLoess2D(_LinearLoessBaseClass):
+    def __init__(self, x, y, num_nearest_pts, mask=None):
+        super(LinearLoess2D, self).__init__(np.array([x, y]), num_nearest_pts, mask)
+
+class LinearLoessGlobal(_LinearLoessBaseClass):
+    def __init__(self, lon, lat, num_nearest_pts, convert_lat_lon=False, is_degrees=True, mask=None):
+        """ Given longitude and latitude, can """
+        if convert_lat_lon:
+            if is_degrees:
+                deg2rad = np.pi/180.
+                lon_loc = lon * deg2rad
+                lat_loc = lat * deg2rad
+            x3d = np.cos(lat_loc)*np.cos(lon_loc)
+            y3d = np.cos(lat_loc)*np.sin(lon_loc)
+            z3d = np.sin(lat_loc)
+            xmat = np.array([x3d, y3d, z3d])
+        else:
+            xmat = np.array([lon, lat])
+        super(LinearLoessGlobal, self).__init__(xmat, num_nearest_pts, mask)
+
+class LinearLoessFromGridFile(_LinearLoessBaseClass):
+    def __init__(self, grid_file):
+        super(LinearLoessFromGridFile, self).__init__(grid_file=grid_file)
+
+# class LinearLoessFromPOPFiles(_LinearLoessBaseClass):
+#     def __init__(self, history_file, region_mask):
+#         super(LinearLoessFromPOPFiles, self).__init__()
