@@ -5,8 +5,8 @@
     2. LinearLoess1D(x, y, num_nearest_points): used for 2D data sets
     3. LinearLoessGlobal(lon, lat, num_nearest_points): used for global data sets
     4. LinearLoessFromGridFile(grid_file): read previously-generated grid file
-    ** Coming soon -- LinearLoessFromPOPFiles(history_file): use TLONG and TLAT for lon and lat
-                      and also set up mask (KMT == 0)
+    5. LinearLoessFromPOPHistoryFile(history_file, num_nearest_points): use TLONG and TLAT
+         for lon and lat and also set up mask (KMT == 0)
 
     For now, this class only performs linear regression (bilinear for 2D); quadratic will
     be added at a later time
