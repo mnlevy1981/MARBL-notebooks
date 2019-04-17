@@ -180,6 +180,14 @@ class LinearLoessFromGridFile(_LinearLoessBaseClass):
     def __init__(self, grid_file):
         super(LinearLoessFromGridFile, self).__init__(grid_file=grid_file)
 
-# class LinearLoessFromPOPFiles(_LinearLoessBaseClass):
-#     def __init__(self, history_file, region_mask):
-#         super(LinearLoessFromPOPFiles, self).__init__()
+class LinearLoessFromPOPHistoryFile(LinearLoessGlobal):
+    def __init__(self, history_file, num_nearest_points, convert_lat_lon=False):
+        self.pop_ds = xr.open_dataset(history_file, decode_times=False).isel(time=0)
+        npts = self.pop_ds['TLONG'].data.size
+        lon = self.pop_ds['TLONG'].data.reshape(npts)
+        lat = self.pop_ds['TLAT'].data.reshape(npts)
+        mask = np.where(self.pop_ds['KMT'].data == 0, False, True).reshape(npts)
+        super(LinearLoessFromPOPHistoryFile, self).__init__(lon, lat,
+                                                            num_nearest_points,
+                                                            convert_lat_lon=convert_lat_lon,
+                                                            mask=mask)
