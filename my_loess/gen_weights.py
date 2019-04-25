@@ -106,11 +106,6 @@ class LoessWeightGenClass(object): # pylint: disable=useless-object-inheritance,
             elif pacific_mask[i]:
                 self.grid['norm'].data[i, :] = np.where(atlantic_mask[norm_jind], 0, self.grid['norm'].data[i, :])
 
-        print("{} total ocean points\n{} in Atlantic, {} in Pacific".format(np.sum(land_mask),
-                                                                            np.sum(atlantic_mask),
-                                                                            np.sum(pacific_mask)))
-        print("lon shape: {}\nlat shape: {}".format(lon.shape, lat.shape))
-
     #####################
 
     def to_netcdf(self, out_file):
