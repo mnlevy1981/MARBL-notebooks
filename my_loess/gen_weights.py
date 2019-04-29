@@ -96,15 +96,16 @@ class LoessWeightGenClass(object): # pylint: disable=useless-object-inheritance,
             # https://stackoverflow.com/questions/5807047/efficient-way-to-take-the-minimum-maximum-n-values-and-indices-from-a-matrix-usi
 
             # Using home-spun norm
-            temp_array = _norm_3d(self.grid['coord_matrix'].data[:, i], self.grid['coord_matrix'].data)
-            self.grid['norm'].data[i, :] = \
-                 np.partition(temp_array, num_nearest_pts-1)[:num_nearest_pts]
+            temp_array = _norm_3d(self.grid['coord_matrix'].data[:, i],
+                                  self.grid['coord_matrix'].data)
+            norms_loc = np.partition(temp_array, num_nearest_pts-1)[:num_nearest_pts]
             norm_jind = np.argpartition(temp_array, num_nearest_pts-1)[:num_nearest_pts]
-            self.grid['norm_jind'].data[i, :] = norm_jind
             if atlantic_mask[i]:
-                self.grid['norm'].data[i, :] = np.where(pacific_mask[norm_jind], 0, self.grid['norm'].data[i, :])
+                norms_loc = np.where(pacific_mask[norm_jind], 0, norms_loc)
             elif pacific_mask[i]:
-                self.grid['norm'].data[i, :] = np.where(atlantic_mask[norm_jind], 0, self.grid['norm'].data[i, :])
+                norms_loc = np.where(atlantic_mask[norm_jind], 0, norms_loc)
+            self.grid['norm_jind'].data[i, :] = norm_jind
+            self.grid['norm'].data[i, :] = norms_loc
 
     #####################
 
@@ -125,9 +126,9 @@ def _norm_3d(vec_in, mat_in):
         Given vec_in (array of length 3) and mat_in (3 x N matrix),
         return the N L2 norms || mat_in[:,i] - vec_in[:] ||
     """
-    return np.sqrt((mat_in[0,:] - vec_in[0]) * (mat_in[0,:] - vec_in[0]) +
-                   (mat_in[1,:] - vec_in[1]) * (mat_in[1,:] - vec_in[1]) +
-                   (mat_in[2,:] - vec_in[2]) * (mat_in[2,:] - vec_in[2]))
+    return np.sqrt((mat_in[0, :] - vec_in[0]) * (mat_in[0, :] - vec_in[0]) +
+                   (mat_in[1, :] - vec_in[1]) * (mat_in[1, :] - vec_in[1]) +
+                   (mat_in[2, :] - vec_in[2]) * (mat_in[2, :] - vec_in[2]))
 
 #####################
 # Can run as script #
