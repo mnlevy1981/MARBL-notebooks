@@ -27,7 +27,7 @@ def set_grid_points():
     grid_pts['shallow'] = {'lat' : 148, 'lon' : 158}
     return grid_pts, len(grid_pts.keys())
 
-def read_pop_data_set():
+def read_pop_data_set(second_step=False):
     import os
     import xarray as xr
 
@@ -36,17 +36,34 @@ def read_pop_data_set():
     if not os.path.isfile(filename):
         casename='g.e22b2.G1850ECO.T62_g17.gen_single_col.nstep_out'
         rundir=os.path.join(os.path.sep, 'glade', 'scratch', 'mlevy', casename, 'run')
-        date='0001-01-01-07200'
+        if second_step:
+            date='0001-01-01-14400'
+        else:
+            date='0001-01-01-07200'
         filename = os.path.join(rundir, '%s.pop.h.%s.nc' % (casename, date))
 
     if os.path.isfile(filename):
         print("Opening %s" % filename)
         # Workaround for https://github.com/pydata/xarray/issues/1576
-        ds_in = xr.open_dataset(filename, decode_cf=False)
-        del(ds_in['KMT'].attrs['_FillValue'])
-        del(ds_in['KMT'].attrs['missing_value'])
-        ds_in = xr.decode_cf(ds_in, decode_times=False, decode_coords=False)
-        return ds_in
+        ds = xr.open_dataset(filename, decode_cf=False)
+        del(ds['KMT'].attrs['_FillValue'])
+        del(ds['KMT'].attrs['missing_value'])
+        ds = xr.decode_cf(ds, decode_times=False, decode_coords=False)
+        return ds
+
+    raise FileNotFoundError("Can not find {}".format(filename))
+
+def read_marbl_data_set():
+    import os
+    import xarray as xr
+
+    # gx1v7 output; nstep averages
+    filename = os.path.join(os.path.expanduser('~/'), 'codes', 'MARBL', 'tests', 'regression_tests', 'compute_cols', 'history_1inst.nc')
+    if os.path.isfile(filename):
+        print("Opening %s" % filename)
+        # Workaround for https://github.com/pydata/xarray/issues/1576
+        ds = xr.open_dataset(filename, decode_cf=True)
+        return ds
 
     raise FileNotFoundError("Can not find {}".format(filename))
 
