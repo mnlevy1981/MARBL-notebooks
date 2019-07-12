@@ -37,17 +37,13 @@ for grid in files_to_update:
     print("Updating {} in {}...".format(new_var, grid))
     ds[new_var] = ds[var_copy_dict[new_var]]
 
-  # 3. use encoding to avoid adding _FillValue to variables that didn't have that attribute
+  # 3. use encoding to avoid adding _FillValue to variables that didn't have that attribute (h/t to stackoverflow)
   # https://stackoverflow.com/questions/45693688/xarray-automatically-applying-fillvalue-to-coordinates-on-netcdf-output
-  # (thanks, stackoverflow!)
-  encoding = dict()
   for var in ds:
     if '_FillValue' not in ds[var].attrs:
-      encoding[var] = dict()
-      encoding[var]['_FillValue'] = False
+      ds[var].encoding['_FillValue'] = False
 
   # 4. Create new netcdf file
   print("Writing {}.nc...".format(grid))
-  ds.to_netcdf('{}.nc'.format(grid), encoding=encoding)
-  del encoding
+  ds.to_netcdf('{}.nc'.format(grid))
   print('')
