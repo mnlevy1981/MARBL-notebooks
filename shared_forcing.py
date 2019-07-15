@@ -27,7 +27,7 @@ def set_grid_points():
     grid_pts['shallow'] = {'lat' : 148, 'lon' : 158}
     return grid_pts, len(grid_pts.keys())
 
-def read_pop_data_set(second_step=False):
+def read_pop_data_set():
     import os
     import xarray as xr
 
@@ -36,10 +36,7 @@ def read_pop_data_set(second_step=False):
     if not os.path.isfile(filename):
         casename='g.e22b2.G1850ECO.T62_g17.gen_single_col.nstep_out'
         rundir=os.path.join(os.path.sep, 'glade', 'scratch', 'mlevy', casename, 'run')
-        if second_step:
-            date='0001-01-01-14400'
-        else:
-            date='0001-01-01-07200'
+        date='0001-01-01-05040'
         filename = os.path.join(rundir, '%s.pop.h.%s.nc' % (casename, date))
 
     if os.path.isfile(filename):
