@@ -36,10 +36,10 @@ def compare_POP_and_MARBL():
             denom = np.nanmax(np.abs(pop_data))
             if denom > 0:
                 rel_err = abs_err/denom
-                print_err = rel_err > 1e-13
+                print_err = rel_err > 1e-13 and abs_err > 1e-16
             else:
                 rel_err = 'NaN (POP is all zeroes)'
-                print_err = abs_err > 0
+                print_err = abs_err > 1e-16
             if print_err:
                 if print_header:
                     print('\n{}\n----'.format(var))
